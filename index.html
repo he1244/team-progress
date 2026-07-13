@@ -307,93 +307,112 @@ function exportExcel(){
     return;
   }
 
-  const today = new Date();
-  const dateText =
-    today.getFullYear() +
-    String(today.getMonth()+1).padStart(2,"0") +
-    String(today.getDate()).padStart(2,"0");
+  try {
+    const today = new Date();
+    const dateText =
+      today.getFullYear() +
+      String(today.getMonth()+1).padStart(2,"0") +
+      String(today.getDate()).padStart(2,"0");
+    const filename = `팀진행현황_${dateText}.xlsx`;
 
-  const workbook = XLSX.utils.book_new();
+    const workbook = XLSX.utils.book_new();
 
-  const teamRows = state.teams.map(t => ({
-    "팀명": t.name,
-    "담당자": (t.managers || []).join(", "),
-    "총 인원": t.total
-  }));
+    const teamRows = state.teams.map(t => ({
+      "팀명": t.name,
+      "담당자": (t.managers || []).join(", "),
+      "총 인원": t.total
+    }));
 
-  const progressRows = [...state.progress]
-    .sort((a,b) => b.date.localeCompare(a.date))
-    .map(p => {
-      const team = state.teams.find(t => t.id === p.teamId);
+    const progressRows = [...state.progress]
+      .sort((a,b) => b.date.localeCompare(a.date))
+      .map(p => {
+        const team = state.teams.find(t => t.id === p.teamId);
+        return {
+          "날짜": p.date,
+          "팀명": team?.name || "",
+          "담당자": (team?.managers || []).join(", "),
+          "총 인원": team?.total || 0,
+          "진행 인원": p.inProgress,
+          "완료 인원": p.done,
+          "완료율(%)": team?.total ? Math.round((p.done / team.total) * 100) : 0
+        };
+      });
+
+    const assignmentRows = [...state.assignments]
+      .sort((a,b) => a.date.localeCompare(b.date))
+      .map(a => ({
+        "날짜": a.date,
+        "팀명": state.teams.find(t => t.id === a.teamId)?.name || "",
+        "배정 담당자": a.manager
+      }));
+
+    const summaryRows = state.teams.map(t => {
+      const summary = teamSummary(t);
       return {
-        "날짜": p.date,
-        "팀명": team?.name || "",
-        "담당자": (team?.managers || []).join(", "),
-        "총 인원": team?.total || 0,
-        "진행 인원": p.inProgress,
-        "완료 인원": p.done,
-        "완료율(%)": team?.total
-          ? Math.round((p.done / team.total) * 100)
-          : 0
+        "팀명": t.name,
+        "담당자": (t.managers || []).join(", "),
+        "총 인원": t.total,
+        "진행 인원": summary.inProgress,
+        "완료 인원": summary.done,
+        "완료율(%)": t.total ? Math.round((summary.done / t.total) * 100) : 0,
+        "기준일": summary.date
       };
     });
 
-  const assignmentRows = [...state.assignments]
-    .sort((a,b) => a.date.localeCompare(b.date))
-    .map(a => ({
-      "날짜": a.date,
-      "팀명": state.teams.find(t => t.id === a.teamId)?.name || "",
-      "배정 담당자": a.manager
-    }));
+    const sheets = [
+      ["요약현황", summaryRows],
+      ["팀목록", teamRows],
+      ["진행현황", progressRows],
+      ["달력배정", assignmentRows]
+    ];
 
-  const summaryRows = state.teams.map(t => {
-    const summary = teamSummary(t);
-    return {
-      "팀명": t.name,
-      "담당자": (t.managers || []).join(", "),
-      "총 인원": t.total,
-      "진행 인원": summary.inProgress,
-      "완료 인원": summary.done,
-      "완료율(%)": t.total
-        ? Math.round((summary.done / t.total) * 100)
-        : 0,
-      "기준일": summary.date
-    };
-  });
-
-  const sheets = [
-    ["요약현황", summaryRows],
-    ["팀목록", teamRows],
-    ["진행현황", progressRows],
-    ["달력배정", assignmentRows]
-  ];
-
-  sheets.forEach(([name, rows]) => {
-    const safeRows = rows.length ? rows : [{"데이터": "등록된 데이터가 없습니다."}];
-    const sheet = XLSX.utils.json_to_sheet(safeRows);
-
-    const range = XLSX.utils.decode_range(sheet["!ref"]);
-    const widths = [];
-
-    for(let col = range.s.c; col <= range.e.c; col++){
-      let maxLength = 10;
-      for(let row = range.s.r; row <= range.e.r; row++){
-        const cell = sheet[XLSX.utils.encode_cell({r:row,c:col})];
-        const value = cell?.v == null ? "" : String(cell.v);
-        maxLength = Math.max(maxLength, Math.min(value.length + 2, 35));
+    sheets.forEach(([name, rows]) => {
+      const safeRows = rows.length ? rows : [{"데이터":"등록된 데이터가 없습니다."}];
+      const sheet = XLSX.utils.json_to_sheet(safeRows);
+      const range = XLSX.utils.decode_range(sheet["!ref"]);
+      const widths = [];
+      for(let col=range.s.c; col<=range.e.c; col++){
+        let maxLength=10;
+        for(let row=range.s.r; row<=range.e.r; row++){
+          const cell=sheet[XLSX.utils.encode_cell({r:row,c:col})];
+          const value=cell?.v == null ? "" : String(cell.v);
+          maxLength=Math.max(maxLength,Math.min(value.length+2,35));
+        }
+        widths.push({wch:maxLength});
       }
-      widths.push({wch:maxLength});
-    }
+      sheet["!cols"]=widths;
+      sheet["!autofilter"]={ref:sheet["!ref"]};
+      XLSX.utils.book_append_sheet(workbook,sheet,name);
+    });
 
-    sheet["!cols"] = widths;
-    sheet["!autofilter"] = {ref: sheet["!ref"]};
-    XLSX.utils.book_append_sheet(workbook, sheet, name);
-  });
+    // 모바일 브라우저 호환성을 위해 writeFile 대신 Blob 다운로드 사용
+    const arrayBuffer = XLSX.write(workbook, {
+      bookType: "xlsx",
+      type: "array",
+      compression: true
+    });
+    const blob = new Blob([arrayBuffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    });
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = filename;
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
 
-  XLSX.writeFile(workbook, `팀진행현황_${dateText}.xlsx`, {
-    bookType: "xlsx",
-    compression: true
-  });
+    // 모바일에서 다운로드가 시작되기 전에 URL이 해제되지 않도록 충분히 지연
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+    }, 30000);
+
+    alert("엑셀 파일 생성을 완료했습니다. 브라우저의 다운로드 목록을 확인하세요.");
+  } catch(error) {
+    console.error(error);
+    alert("엑셀 파일 생성 실패: " + (error?.message || error));
+  }
 }
 
 function renderAll(){renderDashboard();renderTeams();renderProgress();renderCalendar();}
