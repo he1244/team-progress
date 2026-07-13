@@ -1,46 +1,309 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>팀 진행 관리</title><style>
-body{font-family:Arial,sans-serif;margin:0;background:#f3f4f6;color:#111827}header{background:#111827;color:white;padding:16px}nav{display:flex;gap:8px;padding:10px;background:white;overflow:auto}button{padding:9px 12px;border:0;border-radius:7px;background:#2563eb;color:white;cursor:pointer}.secondary{background:#475569}.danger{background:#dc2626}.light{background:#e5e7eb;color:#111827}main{max-width:1100px;margin:auto;padding:14px}.tab{display:none}.tab.active{display:block}.card{background:white;padding:14px;border-radius:10px;margin-bottom:12px;border:1px solid #ddd}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:end}.field{flex:1;min-width:150px}input,select{width:100%;padding:9px;border:1px solid #ccc;border-radius:7px;box-sizing:border-box}table{width:100%;border-collapse:collapse}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}.badge{display:inline-block;background:#dbeafe;padding:3px 7px;border-radius:99px;margin:2px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.kpi{font-size:28px;font-weight:bold}.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}.day{min-height:90px;background:white;border:1px solid #ddd;padding:5px}.assign{font-size:11px;background:#dbeafe;margin-top:3px;padding:3px;border-radius:4px}.status{font-size:12px;margin-left:8px}
-@media(max-width:650px){.grid{grid-template-columns:repeat(2,1fr)}table{font-size:12px}.day{min-height:70px}}
-</style></head><body>
-<header><b>팀 진행 현황 관리</b><span id="status" class="status">로컬 모드</span></header>
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>팀 진행 현황 관리</title>
+<style>
+:root{--bg:#f3f4f6;--card:#fff;--line:#d1d5db;--text:#111827;--muted:#6b7280;--blue:#2563eb;--red:#dc2626;--green:#059669}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,"Noto Sans KR",sans-serif;background:var(--bg);color:var(--text)}
+header{background:#111827;color:white;padding:16px 18px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+header h1{font-size:20px;margin:0}
+.status{font-size:12px;padding:5px 9px;border-radius:999px;background:#374151}
+.status.ok{background:var(--green)} .status.err{background:var(--red)}
+nav{display:flex;gap:8px;padding:10px;background:white;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10;overflow:auto}
+nav button{border:0;border-radius:8px;padding:10px 13px;background:#e5e7eb;color:#111827;white-space:nowrap}
+nav button.active{background:var(--blue);color:white}
+main{max-width:1150px;margin:auto;padding:14px}
+.tab{display:none} .tab.active{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.kpi-title{font-size:13px;color:var(--muted)} .kpi{font-size:30px;font-weight:700;margin-top:6px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+.field{flex:1;min-width:150px}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+input,select{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:white}
+button{padding:9px 12px;border:0;border-radius:8px;background:var(--blue);color:white;cursor:pointer}
+button.secondary{background:#475569} button.danger{background:var(--red)} button.light{background:#e5e7eb;color:#111827}
+table{width:100%;border-collapse:collapse;margin-top:8px}
+th,td{padding:9px;border-bottom:1px solid var(--line);text-align:left;font-size:14px}
+th{background:#f9fafb}
+.badge{display:inline-block;background:#dbeafe;color:#1e3a8a;padding:3px 7px;border-radius:999px;margin:2px;font-size:12px}
+.calendar-head,.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.week{text-align:center;font-weight:700;padding:7px}
+.day{min-height:100px;background:white;border:1px solid var(--line);border-radius:8px;padding:6px;cursor:pointer}
+.day.empty{border:0;background:transparent}
+.assign{font-size:11px;background:#dbeafe;color:#1e3a8a;padding:3px 5px;border-radius:5px;margin-top:3px}
+.muted{color:var(--muted);font-size:13px}
+.progressbar{height:8px;background:#e5e7eb;border-radius:99px;overflow:hidden;min-width:90px}
+.progressbar span{display:block;height:100%;background:var(--green)}
+@media(max-width:700px){.grid{grid-template-columns:repeat(2,1fr)}th,td{font-size:12px;padding:7px}.day{min-height:75px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>팀 진행 현황 관리</h1>
+  <span id="status" class="status">연결 중</span>
+</header>
+
 <nav>
-<button onclick="tab('dash')">대시보드</button><button onclick="tab('teams')">팀</button><button onclick="tab('progress')">진행</button><button onclick="tab('cal')">달력</button><button onclick="tab('settings')">공유 설정</button>
-</nav><main>
-<section id="dash" class="tab active"><div class="grid">
-<div class="card">팀<div id="kt" class="kpi">0</div></div><div class="card">총인원<div id="kp" class="kpi">0</div></div><div class="card">진행<div id="ki" class="kpi">0</div></div><div class="card">완료<div id="kd" class="kpi">0</div></div></div><div class="card" id="dashTable"></div></section>
-<section id="teams" class="tab"><div class="card"><div class="row"><div class="field">팀명<input id="tn"></div><div class="field">담당자(쉼표 구분)<input id="tm"></div><div class="field">총인원<input id="tt" type="number" value="0"></div><button onclick="addTeam()">추가</button></div></div><div class="card" id="teamTable"></div></section>
-<section id="progress" class="tab"><div class="card"><div class="row"><div class="field">날짜<input id="pd" type="date"></div><div class="field">팀<select id="pt"></select></div><div class="field">진행<input id="pc" type="number" value="0"></div><div class="field">완료<input id="dc" type="number" value="0"></div><button onclick="addProgress()">저장</button></div></div><div class="card" id="progressTable"></div></section>
-<section id="cal" class="tab"><div class="card"><div class="row"><button class="light" onclick="month(-1)">이전</button><b id="ct"></b><button class="light" onclick="month(1)">다음</button></div><div id="calendar" class="calendar"></div></div><div class="card" id="assignTable"></div></section>
-<section id="settings" class="tab"><div class="card">
-<div class="field">Val Town URL<input id="url" placeholder="https://...web.val.run"></div><br><div class="field">공유 비밀번호<input id="secret" type="password"></div><br>
-<div class="row"><button onclick="connect()">연결 및 서버 데이터 불러오기</button><button class="secondary" onclick="pull()">서버 다시 불러오기</button><button class="secondary" onclick="exportCSV()">CSV 내보내기</button><label class="light" style="padding:9px;border-radius:7px">CSV 가져오기<input type="file" accept=".csv" onchange="importCSV(event)" style="display:none"></label></div>
-<p>다른 사용자 변경은 5초마다 확인합니다. 충돌 시 서버 데이터를 다시 불러온 후 재입력하세요.</p></div></section>
-</main><script>
-let state=JSON.parse(localStorage.getItem('tp3')||'{"teams":[],"progress":[],"assignments":[]}'),version=0,dirty=false,view=new Date();
-let cfg=JSON.parse(localStorage.getItem('tp3cfg')||'{"url":"","secret":""}');
-const $=id=>document.getElementById(id), uid=()=>crypto.randomUUID(), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function tab(id){document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));$(id).classList.add('active')}
-function badges(a){return (a||[]).map(x=>`<span class=badge>${esc(x)}</span>`).join('')||'-'}
-function saveLocal(){localStorage.setItem('tp3',JSON.stringify(state));dirty=true;render();push()}
-async function api(method,body){let h={'Content-Type':'application/json','X-App-Secret':cfg.secret};let r=await fetch(cfg.url.replace(/\/$/,'')+'/data',{method,headers:h,body:body?JSON.stringify(body):undefined});let j=await r.json();if(!r.ok){let e=new Error(j.error||r.status);e.payload=j;e.status=r.status;throw e}return j}
-async function connect(){cfg={url:$('url').value.trim(),secret:$('secret').value};localStorage.setItem('tp3cfg',JSON.stringify(cfg));await pull()}
-async function pull(silent=false){if(!cfg.url)return;try{let j=await api('GET');if(!dirty||confirm('서버 데이터로 현재 화면을 갱신할까요?')){state=j.data;version=j.version;dirty=false;localStorage.setItem('tp3',JSON.stringify(state));render()}$('status').textContent='공유 연결됨'}catch(e){$('status').textContent='연결 오류';if(!silent)alert(e.message)}}
-async function push(){if(!cfg.url)return;try{let j=await api('PUT',{expectedVersion:version,data:state});version=j.version;dirty=false;$('status').textContent='저장됨'}catch(e){if(e.status===409){$('status').textContent='수정 충돌';alert('다른 사용자가 먼저 저장했습니다. 서버 데이터를 다시 불러오세요.')}else $('status').textContent='저장 오류'}}
-function addTeam(){let n=$('tn').value.trim(),m=[...new Set($('tm').value.split(',').map(x=>x.trim()).filter(Boolean))];if(!n)return alert('팀명 입력');state.teams.push({id:uid(),name:n,managers:m,total:+$('tt').value||0});$('tn').value=$('tm').value='';saveLocal()}
-function delTeam(id){state.teams=state.teams.filter(x=>x.id!==id);state.progress=state.progress.filter(x=>x.teamId!==id);state.assignments=state.assignments.filter(x=>x.teamId!==id);saveLocal()}
-function addProgress(){let teamId=$('pt').value,date=$('pd').value;if(!teamId||!date)return alert('날짜/팀 선택');let x=state.progress.find(x=>x.teamId===teamId&&x.date===date);let v={inProgress:+$('pc').value||0,done:+$('dc').value||0};x?Object.assign(x,v):state.progress.push({id:uid(),teamId,date,...v});saveLocal()}
-function delProgress(id){state.progress=state.progress.filter(x=>x.id!==id);saveLocal()}
-function summary(t){let x=state.progress.filter(p=>p.teamId===t.id).sort((a,b)=>b.date.localeCompare(a.date))[0];return x||{inProgress:0,done:0,date:'-'}}
-function assign(date){let opts=state.teams.map((t,i)=>`${i+1}. ${t.name}`).join('\n'),t=state.teams[(+prompt(date+'\n팀 번호\n'+opts))-1];if(!t)return;let ms=t.managers.map((m,i)=>`${i+1}. ${m}`).join('\n'),v=prompt('담당자 번호 또는 새 이름\n'+ms);if(v===null)return;let manager=t.managers[(+v)-1]||v.trim();if(manager){state.assignments.push({id:uid(),date,teamId:t.id,manager});saveLocal()}}
-function month(n){view=new Date(view.getFullYear(),view.getMonth()+n,1);renderCal()}
-function render(){let ss=state.teams.map(summary);$('kt').textContent=state.teams.length;$('kp').textContent=state.teams.reduce((a,b)=>a+b.total,0);$('ki').textContent=ss.reduce((a,b)=>a+b.inProgress,0);$('kd').textContent=ss.reduce((a,b)=>a+b.done,0);
-$('dashTable').innerHTML='<table><tr><th>팀</th><th>담당자</th><th>총원</th><th>진행</th><th>완료</th></tr>'+state.teams.map(t=>{let s=summary(t);return`<tr><td>${esc(t.name)}</td><td>${badges(t.managers)}</td><td>${t.total}</td><td>${s.inProgress}</td><td>${s.done}</td></tr>`}).join('')+'</table>';
-$('teamTable').innerHTML='<table><tr><th>팀</th><th>담당자</th><th>총원</th><th></th></tr>'+state.teams.map(t=>`<tr><td>${esc(t.name)}</td><td>${badges(t.managers)}</td><td>${t.total}</td><td><button class=danger onclick="delTeam('${t.id}')">삭제</button></td></tr>`).join('')+'</table>';
-$('pt').innerHTML='<option value="">선택</option>'+state.teams.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('');
-$('progressTable').innerHTML='<table><tr><th>날짜</th><th>팀</th><th>진행</th><th>완료</th><th></th></tr>'+state.progress.sort((a,b)=>b.date.localeCompare(a.date)).map(p=>`<tr><td>${p.date}</td><td>${esc(state.teams.find(t=>t.id===p.teamId)?.name||'')}</td><td>${p.inProgress}</td><td>${p.done}</td><td><button class=danger onclick="delProgress('${p.id}')">삭제</button></td></tr>`).join('')+'</table>';renderCal()}
-function renderCal(){let y=view.getFullYear(),m=view.getMonth(),first=new Date(y,m,1).getDay(),last=new Date(y,m+1,0).getDate(),h='';$('ct').textContent=`${y}년 ${m+1}월`;for(let i=0;i<first;i++)h+='<div></div>';for(let d=1;d<=last;d++){let date=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;h+=`<div class=day onclick="assign('${date}')"><b>${d}</b>${state.assignments.filter(a=>a.date===date).map(a=>`<div class=assign>${esc(a.manager)}</div>`).join('')}</div>`}$('calendar').innerHTML=h;$('assignTable').innerHTML='<table><tr><th>날짜</th><th>팀</th><th>담당자</th></tr>'+state.assignments.sort((a,b)=>a.date.localeCompare(b.date)).map(a=>`<tr><td>${a.date}</td><td>${esc(state.teams.find(t=>t.id===a.teamId)?.name||'')}</td><td>${esc(a.manager)}</td></tr>`).join('')+'</table>'}
-function exportCSV(){let rows=[['type','date','team','managers','total','inProgress','done','assignedManager']];state.teams.forEach(t=>rows.push(['team','',t.name,t.managers.join('|'),t.total,'','','']));state.progress.forEach(p=>rows.push(['progress',p.date,state.teams.find(t=>t.id===p.teamId)?.name||'','','',p.inProgress,p.done,'']));state.assignments.forEach(a=>rows.push(['assignment',a.date,state.teams.find(t=>t.id===a.teamId)?.name||'','','','','',a.manager]));let csv='\ufeff'+rows.map(r=>r.map(x=>`"${String(x).replaceAll('"','""')}"`).join(',')).join('\n'),b=new Blob([csv],{type:'text/csv'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='team-progress.csv';a.click();URL.revokeObjectURL(u)}
-function importCSV(e){alert('CSV 가져오기는 안전한 데이터 병합 규칙이 필요해 현재 버전에서는 내보내기만 지원합니다.');e.target.value=''}
-$('pd').value=new Date().toISOString().slice(0,10);$('url').value=cfg.url;$('secret').value=cfg.secret;render();if(cfg.url)pull(true);setInterval(()=>{if(cfg.url&&!dirty)pull(true)},5000);
-</script></body></html>
+  <button class="active" data-tab="dashboard">대시보드</button>
+  <button data-tab="teams">팀 관리</button>
+  <button data-tab="progress">진행 현황</button>
+  <button data-tab="calendar">달력 배정</button>
+</nav>
+
+<main>
+<section id="dashboard" class="tab active">
+  <div class="grid">
+    <div class="card"><div class="kpi-title">전체 팀</div><div id="kpiTeams" class="kpi">0</div></div>
+    <div class="card"><div class="kpi-title">총 인원</div><div id="kpiPeople" class="kpi">0</div></div>
+    <div class="card"><div class="kpi-title">진행 인원</div><div id="kpiProgress" class="kpi">0</div></div>
+    <div class="card"><div class="kpi-title">완료 인원</div><div id="kpiDone" class="kpi">0</div></div>
+  </div>
+  <div class="card"><h3>팀별 현황</h3><div id="dashboardTable"></div></div>
+</section>
+
+<section id="teams" class="tab">
+  <div class="card">
+    <div class="row">
+      <div class="field"><label>팀명</label><input id="teamName" placeholder="예: 생산1팀"></div>
+      <div class="field"><label>담당자 여러 명</label><input id="managerNames" placeholder="홍길동, 김영희"></div>
+      <div class="field"><label>총 인원</label><input id="totalPeople" type="number" min="0" value="0"></div>
+      <button onclick="addTeam()">팀 추가</button>
+    </div>
+    <p class="muted">담당자는 쉼표로 구분해 입력합니다.</p>
+  </div>
+  <div class="card" id="teamTable"></div>
+</section>
+
+<section id="progress" class="tab">
+  <div class="card">
+    <div class="row">
+      <div class="field"><label>날짜</label><input id="progressDate" type="date"></div>
+      <div class="field"><label>팀</label><select id="progressTeam"></select></div>
+      <div class="field"><label>진행 인원</label><input id="progressCount" type="number" min="0" value="0"></div>
+      <div class="field"><label>완료 인원</label><input id="doneCount" type="number" min="0" value="0"></div>
+      <button onclick="saveProgress()">저장</button>
+    </div>
+  </div>
+  <div class="card" id="progressTable"></div>
+</section>
+
+<section id="calendar" class="tab">
+  <div class="card">
+    <div class="row">
+      <button class="light" onclick="changeMonth(-1)">이전 달</button>
+      <strong id="calendarTitle"></strong>
+      <button class="light" onclick="changeMonth(1)">다음 달</button>
+    </div>
+    <p class="muted">날짜를 누르면 팀과 담당자를 배정할 수 있습니다.</p>
+    <div class="calendar-head">
+      <div class="week">일</div><div class="week">월</div><div class="week">화</div>
+      <div class="week">수</div><div class="week">목</div><div class="week">금</div><div class="week">토</div>
+    </div>
+    <div id="calendarGrid" class="calendar"></div>
+  </div>
+  <div class="card"><h3>배정 내역</h3><div id="assignmentTable"></div></div>
+</section>
+</main>
+
+<script>
+const API_URL = "https://he1244--bfeebac07e4111f19a3c1607ee4eb77e.web.val.run";
+const LOCAL_KEY = "team-progress-fixed-v1";
+
+let state = JSON.parse(localStorage.getItem(LOCAL_KEY) || '{"teams":[],"progress":[],"assignments":[]}');
+let version = 0;
+let dirty = false;
+let viewDate = new Date();
+let saveTimer = null;
+
+const $ = id => document.getElementById(id);
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid = () => crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)+Math.random().toString(36).slice(2);
+const parseManagers = v => [...new Set(v.split(",").map(x=>x.trim()).filter(Boolean))];
+
+document.querySelectorAll("nav button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));
+    document.querySelectorAll(".tab").forEach(s=>s.classList.remove("active"));
+    btn.classList.add("active");
+    $(btn.dataset.tab).classList.add("active");
+  });
+});
+
+function setStatus(text,type=""){
+  const el=$("status"); el.textContent=text; el.className="status "+type;
+}
+
+async function api(method, body){
+  const res = await fetch(API_URL + "/data", {
+    method,
+    headers: {"Content-Type":"application/json"},
+    body: body ? JSON.stringify(body) : undefined,
+    cache: "no-store"
+  });
+  const data = await res.json();
+  if(!res.ok){
+    const err = new Error(data.message || data.error || "API 오류");
+    err.status = res.status; err.payload = data; throw err;
+  }
+  return data;
+}
+
+function saveLocal(){
+  localStorage.setItem(LOCAL_KEY, JSON.stringify(state));
+  dirty = true;
+  renderAll();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(push, 300);
+}
+
+async function pull(silent=false){
+  try{
+    const result = await api("GET");
+    if(!dirty){
+      state = result.data;
+      version = result.version;
+      localStorage.setItem(LOCAL_KEY, JSON.stringify(state));
+      renderAll();
+    }
+    setStatus("공유 연결됨","ok");
+  }catch(e){
+    setStatus("연결 오류","err");
+    if(!silent) alert("서버 연결 실패: "+e.message);
+  }
+}
+
+async function push(){
+  try{
+    setStatus("저장 중");
+    const result = await api("PUT", {expectedVersion:version,data:state});
+    version = result.version;
+    dirty = false;
+    setStatus("저장됨","ok");
+  }catch(e){
+    if(e.status===409){
+      setStatus("수정 충돌","err");
+      alert("다른 사용자가 먼저 저장했습니다. 최신 데이터를 불러옵니다.");
+      dirty = false;
+      await pull();
+    }else{
+      setStatus("저장 오류","err");
+      alert("저장 실패: "+e.message);
+    }
+  }
+}
+
+function badges(arr){
+  return arr?.length ? arr.map(x=>`<span class="badge">${esc(x)}</span>`).join("") : "-";
+}
+
+function addTeam(){
+  const name=$("teamName").value.trim();
+  if(!name) return alert("팀명을 입력하세요.");
+  state.teams.push({
+    id:uid(),
+    name,
+    managers:parseManagers($("managerNames").value),
+    total:Math.max(0,Number($("totalPeople").value)||0)
+  });
+  $("teamName").value=""; $("managerNames").value=""; $("totalPeople").value=0;
+  saveLocal();
+}
+
+function editTeam(id){
+  const t=state.teams.find(x=>x.id===id);
+  const name=prompt("팀명",t.name); if(name===null)return;
+  const managers=prompt("담당자 여러 명(쉼표 구분)",(t.managers||[]).join(", ")); if(managers===null)return;
+  const total=prompt("총 인원",t.total); if(total===null)return;
+  t.name=name.trim()||t.name; t.managers=parseManagers(managers); t.total=Math.max(0,Number(total)||0);
+  saveLocal();
+}
+
+function deleteTeam(id){
+  if(!confirm("팀과 관련 데이터를 삭제할까요?"))return;
+  state.teams=state.teams.filter(x=>x.id!==id);
+  state.progress=state.progress.filter(x=>x.teamId!==id);
+  state.assignments=state.assignments.filter(x=>x.teamId!==id);
+  saveLocal();
+}
+
+function saveProgress(){
+  const date=$("progressDate").value, teamId=$("progressTeam").value;
+  if(!date||!teamId)return alert("날짜와 팀을 선택하세요.");
+  const values={inProgress:Math.max(0,Number($("progressCount").value)||0),done:Math.max(0,Number($("doneCount").value)||0)};
+  const old=state.progress.find(x=>x.date===date&&x.teamId===teamId);
+  old ? Object.assign(old,values) : state.progress.push({id:uid(),date,teamId,...values});
+  saveLocal();
+}
+
+function deleteProgress(id){state.progress=state.progress.filter(x=>x.id!==id);saveLocal();}
+
+function teamSummary(team){
+  return [...state.progress.filter(x=>x.teamId===team.id)].sort((a,b)=>b.date.localeCompare(a.date))[0] || {inProgress:0,done:0,date:"-"};
+}
+
+function renderDashboard(){
+  const summaries=state.teams.map(teamSummary);
+  $("kpiTeams").textContent=state.teams.length;
+  $("kpiPeople").textContent=state.teams.reduce((s,t)=>s+t.total,0);
+  $("kpiProgress").textContent=summaries.reduce((s,x)=>s+x.inProgress,0);
+  $("kpiDone").textContent=summaries.reduce((s,x)=>s+x.done,0);
+  $("dashboardTable").innerHTML=state.teams.length?`<table><tr><th>팀</th><th>담당자</th><th>총원</th><th>진행</th><th>완료</th><th>완료율</th></tr>${state.teams.map(t=>{const s=teamSummary(t),r=t.total?Math.min(100,Math.round(s.done/t.total*100)):0;return`<tr><td>${esc(t.name)}</td><td>${badges(t.managers)}</td><td>${t.total}</td><td>${s.inProgress}</td><td>${s.done}</td><td><div class="progressbar"><span style="width:${r}%"></span></div>${r}%</td></tr>`}).join("")}</table>`:`<p class="muted">등록된 팀이 없습니다.</p>`;
+}
+
+function renderTeams(){
+  $("teamTable").innerHTML=state.teams.length?`<table><tr><th>팀</th><th>담당자</th><th>총원</th><th>관리</th></tr>${state.teams.map(t=>`<tr><td>${esc(t.name)}</td><td>${badges(t.managers)}</td><td>${t.total}</td><td><button class="secondary" onclick="editTeam('${t.id}')">수정</button> <button class="danger" onclick="deleteTeam('${t.id}')">삭제</button></td></tr>`).join("")}</table>`:`<p class="muted">등록된 팀이 없습니다.</p>`;
+  $("progressTeam").innerHTML='<option value="">팀 선택</option>'+state.teams.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join("");
+}
+
+function renderProgress(){
+  const list=[...state.progress].sort((a,b)=>b.date.localeCompare(a.date));
+  $("progressTable").innerHTML=list.length?`<table><tr><th>날짜</th><th>팀</th><th>진행</th><th>완료</th><th>관리</th></tr>${list.map(p=>`<tr><td>${p.date}</td><td>${esc(state.teams.find(t=>t.id===p.teamId)?.name||"")}</td><td>${p.inProgress}</td><td>${p.done}</td><td><button class="danger" onclick="deleteProgress('${p.id}')">삭제</button></td></tr>`).join("")}</table>`:`<p class="muted">등록된 진행 현황이 없습니다.</p>`;
+}
+
+function fmtDate(y,m,d){return `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;}
+
+function assignDate(date){
+  if(!state.teams.length)return alert("팀을 먼저 등록하세요.");
+  const teamList=state.teams.map((t,i)=>`${i+1}. ${t.name}`).join("\n");
+  const team=state.teams[Number(prompt(`${date}\n팀 번호\n${teamList}`))-1];
+  if(!team)return;
+  const managerList=(team.managers||[]).map((m,i)=>`${i+1}. ${m}`).join("\n");
+  const input=prompt(`담당자 번호 또는 새 이름\n${managerList}`);
+  if(input===null)return;
+  const manager=team.managers?.[Number(input)-1]||input.trim();
+  if(!manager)return;
+  state.assignments.push({id:uid(),date,teamId:team.id,manager});
+  saveLocal();
+}
+
+function deleteAssignment(id){state.assignments=state.assignments.filter(x=>x.id!==id);saveLocal();}
+
+function changeMonth(n){viewDate=new Date(viewDate.getFullYear(),viewDate.getMonth()+n,1);renderCalendar();}
+
+function renderCalendar(){
+  const y=viewDate.getFullYear(),m=viewDate.getMonth(),first=new Date(y,m,1).getDay(),last=new Date(y,m+1,0).getDate();
+  $("calendarTitle").textContent=`${y}년 ${m+1}월`;
+  let html="";
+  for(let i=0;i<first;i++)html+='<div class="day empty"></div>';
+  for(let d=1;d<=last;d++){
+    const date=fmtDate(y,m,d);
+    html+=`<div class="day" onclick="assignDate('${date}')"><b>${d}</b>${state.assignments.filter(a=>a.date===date).map(a=>`<div class="assign">${esc(state.teams.find(t=>t.id===a.teamId)?.name||"")} · ${esc(a.manager)}</div>`).join("")}</div>`;
+  }
+  $("calendarGrid").innerHTML=html;
+  const list=[...state.assignments].sort((a,b)=>a.date.localeCompare(b.date));
+  $("assignmentTable").innerHTML=list.length?`<table><tr><th>날짜</th><th>팀</th><th>담당자</th><th>관리</th></tr>${list.map(a=>`<tr><td>${a.date}</td><td>${esc(state.teams.find(t=>t.id===a.teamId)?.name||"")}</td><td>${esc(a.manager)}</td><td><button class="danger" onclick="deleteAssignment('${a.id}')">삭제</button></td></tr>`).join("")}</table>`:`<p class="muted">배정 내역이 없습니다.</p>`;
+}
+
+function renderAll(){renderDashboard();renderTeams();renderProgress();renderCalendar();}
+
+$("progressDate").value=new Date().toISOString().slice(0,10);
+renderAll();
+pull();
+setInterval(()=>{if(!dirty)pull(true)},5000);
+</script>
+</body>
+</html>
