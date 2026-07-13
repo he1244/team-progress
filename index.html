@@ -38,6 +38,9 @@ th{background:#f9fafb}
 .muted{color:var(--muted);font-size:13px}
 .progressbar{height:8px;background:#e5e7eb;border-radius:99px;overflow:hidden;min-width:90px}
 .progressbar span{display:block;height:100%;background:var(--green)}
+.kakao-warning{display:none;background:#fff3cd;border:1px solid #ffe69c;color:#664d03;padding:12px;margin:12px auto;max-width:1150px;border-radius:10px}
+.kakao-warning strong{display:block;margin-bottom:6px}
+.kakao-warning button{margin-top:8px;margin-right:6px}
 @media(max-width:700px){.grid{grid-template-columns:repeat(2,1fr)}th,td{font-size:12px;padding:7px}.day{min-height:75px}}
 </style>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -55,6 +58,14 @@ th{background:#f9fafb}
   <button data-tab="calendar">달력 배정</button>
   <button onclick="exportExcel()">엑셀 내보내기</button>
 </nav>
+
+<div id="kakaoWarning" class="kakao-warning">
+  <strong>카카오톡 내부 브라우저에서는 Excel 다운로드가 차단될 수 있습니다.</strong>
+  오른쪽 위 메뉴에서 ‘다른 브라우저로 열기’를 선택하거나 아래 버튼을 사용하세요.<br>
+  <button onclick="openInChrome()">Chrome으로 열기</button>
+  <button class="secondary" onclick="copyPageLink()">링크 복사</button>
+</div>
+
 
 <main>
 <section id="dashboard" class="tab active">
@@ -301,118 +312,163 @@ function renderCalendar(){
 }
 
 
-function exportExcel(){
+async function exportExcel(){
   if(typeof XLSX === "undefined"){
     alert("엑셀 모듈을 불러오지 못했습니다. 인터넷 연결 후 다시 시도하세요.");
     return;
   }
 
-  try {
-    const today = new Date();
-    const dateText =
-      today.getFullYear() +
-      String(today.getMonth()+1).padStart(2,"0") +
-      String(today.getDate()).padStart(2,"0");
-    const filename = `팀진행현황_${dateText}.xlsx`;
+  const today = new Date();
+  const dateText =
+    today.getFullYear() +
+    String(today.getMonth()+1).padStart(2,"0") +
+    String(today.getDate()).padStart(2,"0");
+  const filename = `팀진행현황_${dateText}.xlsx`;
 
-    const workbook = XLSX.utils.book_new();
+  const workbook = XLSX.utils.book_new();
 
-    const teamRows = state.teams.map(t => ({
-      "팀명": t.name,
-      "담당자": (t.managers || []).join(", "),
-      "총 인원": t.total
-    }));
+  const teamRows = state.teams.map(t => ({
+    "팀명": t.name,
+    "담당자": (t.managers || []).join(", "),
+    "총 인원": t.total
+  }));
 
-    const progressRows = [...state.progress]
-      .sort((a,b) => b.date.localeCompare(a.date))
-      .map(p => {
-        const team = state.teams.find(t => t.id === p.teamId);
-        return {
-          "날짜": p.date,
-          "팀명": team?.name || "",
-          "담당자": (team?.managers || []).join(", "),
-          "총 인원": team?.total || 0,
-          "진행 인원": p.inProgress,
-          "완료 인원": p.done,
-          "완료율(%)": team?.total ? Math.round((p.done / team.total) * 100) : 0
-        };
-      });
-
-    const assignmentRows = [...state.assignments]
-      .sort((a,b) => a.date.localeCompare(b.date))
-      .map(a => ({
-        "날짜": a.date,
-        "팀명": state.teams.find(t => t.id === a.teamId)?.name || "",
-        "배정 담당자": a.manager
-      }));
-
-    const summaryRows = state.teams.map(t => {
-      const summary = teamSummary(t);
+  const progressRows = [...state.progress]
+    .sort((a,b) => b.date.localeCompare(a.date))
+    .map(p => {
+      const team = state.teams.find(t => t.id === p.teamId);
       return {
-        "팀명": t.name,
-        "담당자": (t.managers || []).join(", "),
-        "총 인원": t.total,
-        "진행 인원": summary.inProgress,
-        "완료 인원": summary.done,
-        "완료율(%)": t.total ? Math.round((summary.done / t.total) * 100) : 0,
-        "기준일": summary.date
+        "날짜": p.date,
+        "팀명": team?.name || "",
+        "담당자": (team?.managers || []).join(", "),
+        "총 인원": team?.total || 0,
+        "진행 인원": p.inProgress,
+        "완료 인원": p.done,
+        "완료율(%)": team?.total
+          ? Math.round((p.done / team.total) * 100)
+          : 0
       };
     });
 
-    const sheets = [
-      ["요약현황", summaryRows],
-      ["팀목록", teamRows],
-      ["진행현황", progressRows],
-      ["달력배정", assignmentRows]
-    ];
+  const assignmentRows = [...state.assignments]
+    .sort((a,b) => a.date.localeCompare(b.date))
+    .map(a => ({
+      "날짜": a.date,
+      "팀명": state.teams.find(t => t.id === a.teamId)?.name || "",
+      "배정 담당자": a.manager
+    }));
 
-    sheets.forEach(([name, rows]) => {
-      const safeRows = rows.length ? rows : [{"데이터":"등록된 데이터가 없습니다."}];
-      const sheet = XLSX.utils.json_to_sheet(safeRows);
-      const range = XLSX.utils.decode_range(sheet["!ref"]);
-      const widths = [];
-      for(let col=range.s.c; col<=range.e.c; col++){
-        let maxLength=10;
-        for(let row=range.s.r; row<=range.e.r; row++){
-          const cell=sheet[XLSX.utils.encode_cell({r:row,c:col})];
-          const value=cell?.v == null ? "" : String(cell.v);
-          maxLength=Math.max(maxLength,Math.min(value.length+2,35));
-        }
-        widths.push({wch:maxLength});
+  const summaryRows = state.teams.map(t => {
+    const summary = teamSummary(t);
+    return {
+      "팀명": t.name,
+      "담당자": (t.managers || []).join(", "),
+      "총 인원": t.total,
+      "진행 인원": summary.inProgress,
+      "완료 인원": summary.done,
+      "완료율(%)": t.total
+        ? Math.round((summary.done / t.total) * 100)
+        : 0,
+      "기준일": summary.date
+    };
+  });
+
+  [
+    ["요약현황", summaryRows],
+    ["팀목록", teamRows],
+    ["진행현황", progressRows],
+    ["달력배정", assignmentRows]
+  ].forEach(([name, rows]) => {
+    const safeRows = rows.length ? rows : [{"데이터":"등록된 데이터가 없습니다."}];
+    const sheet = XLSX.utils.json_to_sheet(safeRows);
+    const range = XLSX.utils.decode_range(sheet["!ref"]);
+    const widths = [];
+
+    for(let col=range.s.c; col<=range.e.c; col++){
+      let maxLength=10;
+      for(let row=range.s.r; row<=range.e.r; row++){
+        const cell=sheet[XLSX.utils.encode_cell({r:row,c:col})];
+        const value=cell?.v==null ? "" : String(cell.v);
+        maxLength=Math.max(maxLength,Math.min(value.length+2,35));
       }
-      sheet["!cols"]=widths;
-      sheet["!autofilter"]={ref:sheet["!ref"]};
-      XLSX.utils.book_append_sheet(workbook,sheet,name);
+      widths.push({wch:maxLength});
+    }
+
+    sheet["!cols"]=widths;
+    sheet["!autofilter"]={ref:sheet["!ref"]};
+    XLSX.utils.book_append_sheet(workbook,sheet,name);
+  });
+
+  try{
+    const bytes = XLSX.write(workbook,{
+      bookType:"xlsx",
+      type:"array",
+      compression:true
     });
 
-    // 모바일 브라우저 호환성을 위해 writeFile 대신 Blob 다운로드 사용
-    const arrayBuffer = XLSX.write(workbook, {
-      bookType: "xlsx",
-      type: "array",
-      compression: true
+    const file = new File(
+      [bytes],
+      filename,
+      {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
+    );
+
+    // 모바일에서는 시스템 공유창으로 파일 저장/전송을 우선 사용
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({
+        files:[file],
+        title:"팀 진행 현황 Excel",
+        text:"생성된 Excel 파일입니다."
+      });
+      return;
+    }
+
+    // 일반 브라우저 다운로드
+    const blob = new Blob([bytes],{
+      type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     });
-    const blob = new Blob([arrayBuffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    });
-    const objectUrl = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = objectUrl;
+    link.href = url;
     link.download = filename;
     link.style.display = "none";
     document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
 
-    // 모바일에서 다운로드가 시작되기 전에 URL이 해제되지 않도록 충분히 지연
-    setTimeout(() => {
-      document.body.removeChild(link);
-      URL.revokeObjectURL(objectUrl);
-    }, 30000);
-
-    alert("엑셀 파일 생성을 완료했습니다. 브라우저의 다운로드 목록을 확인하세요.");
-  } catch(error) {
+    if(isKakaoBrowser()){
+      alert("카카오톡 내부 브라우저가 다운로드를 차단할 수 있습니다. 오른쪽 위 메뉴에서 ‘다른 브라우저로 열기’를 선택한 뒤 다시 내려받으세요.");
+    }
+  }catch(error){
+    if(error?.name === "AbortError") return;
     console.error(error);
-    alert("엑셀 파일 생성 실패: " + (error?.message || error));
+    alert("Excel 파일을 저장하지 못했습니다. 카카오톡 오른쪽 위 메뉴에서 ‘다른 브라우저로 열기’를 선택한 뒤 다시 시도하세요.");
   }
+}
+
+function isKakaoBrowser(){
+  return /KAKAOTALK/i.test(navigator.userAgent);
+}
+
+function openInChrome(){
+  const current = location.href.replace(/^https?:\/\//,"");
+  location.href = `intent://${current}#Intent;scheme=https;package=com.android.chrome;end`;
+}
+
+async function copyPageLink(){
+  try{
+    await navigator.clipboard.writeText(location.href);
+    alert("링크를 복사했습니다. Chrome 또는 삼성 인터넷 주소창에 붙여넣으세요.");
+  }catch{
+    prompt("아래 링크를 복사하세요.",location.href);
+  }
+}
+
+if(isKakaoBrowser()){
+  document.addEventListener("DOMContentLoaded",()=>{
+    const warning=document.getElementById("kakaoWarning");
+    if(warning) warning.style.display="block";
+  });
 }
 
 function renderAll(){renderDashboard();renderTeams();renderProgress();renderCalendar();}
